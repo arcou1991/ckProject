@@ -1,0 +1,9 @@
+proj.android/
+proj.win32/
+proj.android-studio/
+proj.ios_mac/
+proj.linux/
+cocos2d/
+Resources/res/.gitkeep
+CMakeLists.txt
+.cocos-project.json
