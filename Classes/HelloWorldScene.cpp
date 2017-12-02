@@ -3,16 +3,16 @@
 
 USING_NS_CC;
 
-Scene* HelloWorld::createScene()
+CCScene* HelloWorld::createScene()
 {
-    return HelloWorld::create();
-}
-
-// Print useful error message instead of segfaulting when files are not there.
-static void problemLoading(const char* filename)
-{
-    printf("Error while loading: %s\n", filename);
-    printf("Depending on how you compiled you might have to add 'Resources/' in front of filenames in HelloWorldScene.cpp\n");
+	// 'scene' is an autorelease object
+	CCScene *scene = CCScene::create();
+	// 'layer' is an autorelease object
+	HelloWorld *layer = HelloWorld::create();
+	// add layer as a child to scene
+	scene->addChild(layer);
+	// return the scene
+	return scene;
 }
 
 // on "init" you need to initialize your instance
@@ -20,7 +20,7 @@ bool HelloWorld::init()
 {
     //////////////////////////////
     // 1. super init first
-    if ( !Scene::init() )
+    if ( !Layer::init() )
     {
         return false;
     }
@@ -28,86 +28,121 @@ bool HelloWorld::init()
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
-    /////////////////////////////
-    // 2. add a menu item with "X" image, which is clicked to quit the program
-    //    you may modify it.
+	// 初始化物理引擎
+	this->initPhysics();
 
-    // add a "close" icon to exit the progress. it's an autorelease object
-    auto closeItem = MenuItemImage::create(
-                                           "CloseNormal.png",
-                                           "CloseSelected.png",
-                                           CC_CALLBACK_1(HelloWorld::menuCloseCallback, this));
+	setTouchEnabled(true);
 
-    if (closeItem == nullptr ||
-        closeItem->getContentSize().width <= 0 ||
-        closeItem->getContentSize().height <= 0)
-    {
-        problemLoading("'CloseNormal.png' and 'CloseSelected.png'");
-    }
-    else
-    {
-        float x = origin.x + visibleSize.width - closeItem->getContentSize().width/2;
-        float y = origin.y + closeItem->getContentSize().height/2;
-        closeItem->setPosition(Vec2(x,y));
-    }
+	// 设置为单点触摸
+	setTouchMode(Touch::DispatchMode::ONE_BY_ONE);
 
-    // create menu, it's an autorelease object
-    auto menu = Menu::create(closeItem, NULL);
-    menu->setPosition(Vec2::ZERO);
-    this->addChild(menu, 1);
-
-    /////////////////////////////
-    // 3. add your codes below...
-
-    // add a label shows "Hello World"
-    // create and initialize a label
-
-    auto label = Label::createWithTTF("ck Project", "fonts/Marker Felt.ttf", 24);
-    if (label == nullptr)
-    {
-        problemLoading("'fonts/Marker Felt.ttf'");
-    }
-    else
-    {
-        // position the label on the center of the screen
-        label->setPosition(Vec2(origin.x + visibleSize.width/2,
-                                origin.y + visibleSize.height - label->getContentSize().height));
-
-        // add the label as a child to this layer
-        this->addChild(label, 1);
-    }
-
-    // add "HelloWorld" splash screen"
-    auto sprite = Sprite::create("HelloWorld.png");
-    if (sprite == nullptr)
-    {
-        problemLoading("'HelloWorld.png'");
-    }
-    else
-    {
-        // position the sprite on the center of the screen
-        sprite->setPosition(Vec2(visibleSize.width/2 + origin.x, visibleSize.height/2 + origin.y));
-
-        // add the sprite as a child to this layer
-        this->addChild(sprite, 0);
-    }
+	// 开始游戏循环
+	scheduleUpdate();
     return true;
 }
 
 
-void HelloWorld::menuCloseCallback(Ref* pSender)
+void HelloWorld::initPhysics()
 {
-    //Close the cocos2d-x game scene and quit the application
-    Director::getInstance()->end();
+	Size s = Director::getInstance()->getVisibleSize();
 
-    #if (CC_TARGET_PLATFORM == CC_PLATFORM_IOS)
-    exit(0);
-#endif
+	//重力参数
+	b2Vec2 gravity;
+	gravity.Set(0.0f, -10.0f);
 
-    /*To navigate back to native iOS screen(if present) without quitting the application  ,do not use Director::getInstance()->end() and exit(0) as given above,instead trigger a custom event created in RootViewController.mm as below*/
+	//创建世界
+	world = new b2World(gravity);
 
-    //EventCustom customEndEvent("game_scene_close_event");
-    //_eventDispatcher->dispatchEvent(&customEndEvent);
+	//允许物体休眠
+	world->SetAllowSleeping(true);
 
+	//开始连续物理测试
+	world->SetContinuousPhysics(true);
+
+	//地面物体定义
+	b2BodyDef groundBodyDef;
+
+	//左下角
+	groundBodyDef.position.Set(0.0f, 0.0f);
+
+	//创建地面物体
+	b2Body* groundBody = world->CreateBody(&groundBodyDef);
+
+	//定义一个有边的形状
+	b2EdgeShape groundBox;
+
+	//底部
+	groundBox.Set(b2Vec2(0, 0), b2Vec2(s.width / PTM_RATIO, 0));
+	//使用夹具固定形状到物体上
+	groundBody->CreateFixture(&groundBox, 0);
+
+	//顶部
+	groundBox.Set(b2Vec2(0, s.height / PTM_RATIO), b2Vec2(s.width / PTM_RATIO, s.height / PTM_RATIO));
+	groundBody->CreateFixture(&groundBox, 0);
+
+	//左边
+	groundBox.Set(b2Vec2(0, s.height / PTM_RATIO), b2Vec2(0, 0));
+	groundBody->CreateFixture(&groundBox, 0);
+
+	//右边
+	groundBox.Set(b2Vec2(s.width / PTM_RATIO, s.height / PTM_RATIO), b2Vec2(s.width / PTM_RATIO, 0));
+	groundBody->CreateFixture(&groundBox, 0);
+}
+
+
+void HelloWorld::addNewSpriteAtPosition(Vec2 p)
+{
+	log("Add sprite %0.2f x %0.2f", p.x, p.y);
+
+	// 创建物理引擎精灵对象
+	auto sprite = Sprite::create("btn_world.png");
+	sprite->setPosition(Vec2(p.x, p.y));
+	this->addChild(sprite);
+
+	// 物体定义
+	b2BodyDef bodyDef;
+	bodyDef.type = b2_dynamicBody;
+	bodyDef.position.Set(p.x / PTM_RATIO, p.y / PTM_RATIO);
+	b2Body *body = world->CreateBody(&bodyDef);
+	body->SetUserData(sprite);
+
+	// 定义2米见方的盒子形状
+	b2PolygonShape dynamicBox;
+	dynamicBox.SetAsBox(1, 1);
+
+	//夹具定义
+	b2FixtureDef fixtureDef;
+
+	//设置夹具的形状
+	fixtureDef.shape = &dynamicBox;
+
+	//设置密度
+	fixtureDef.density = 1.0f;
+
+	//设置摩擦系数
+	fixtureDef.friction = 0.3f;
+
+	//使用夹具固定形状到物体上
+	body->CreateFixture(&fixtureDef);
+}
+
+
+void HelloWorld::update(float dt)
+{
+	float timeStep = 0.03f;
+	int32 velocityIterations = 8;
+	int32 positionIterations = 1;
+
+	world->Step(timeStep, velocityIterations, positionIterations);
+
+	for (b2Body* b = world->GetBodyList(); b; b = b->GetNext())
+	{
+		if (b->GetUserData() != nullptr)
+		{
+			Sprite* sprite = (Sprite*)b->GetUserData();
+			sprite->setPosition(Vec2(b->GetPosition().x * PTM_RATIO, b->GetPosition().y * PTM_RATIO));
+			sprite->setRotation(-1 * CC_RADIANS_TO_DEGREES(b->GetAngle()));
+		}
+	}
 
 }
